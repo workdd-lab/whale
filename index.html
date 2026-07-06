@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ماذا لو كانت الحيتان تطير؟</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ====== Ocean background ====== -->
+  <div class="ocean" aria-hidden="true">
+    <div class="rays">
+      <span class="ray r1"></span>
+      <span class="ray r2"></span>
+      <span class="ray r3"></span>
+      <span class="ray r4"></span>
+    </div>
+
+    <canvas id="bubbles"></canvas>
+
+    <!-- distant whale -->
+    <div class="whale-track distant">
+      <div class="whale-bob">
+        <div class="whale-pitch">
+          <svg class="whale-svg" viewBox="0 0 980 430">
+            <use href="#whaleShape"></use>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- main whale -->
+    <div class="whale-track main">
+      <div class="whale-bob">
+        <div class="whale-pitch">
+          <svg class="whale-svg" viewBox="0 0 980 430">
+            <use href="#whaleShape"></use>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- fish school -->
+    <div class="fish-school">
+      <span class="fish f1"></span><span class="fish f2"></span><span class="fish f3"></span>
+      <span class="fish f4"></span><span class="fish f5"></span><span class="fish f6"></span>
+      <span class="fish f7"></span>
+    </div>
+
+    <div class="seafloor-glow"></div>
+  </div>
+
+  <!-- whale SVG definition -->
+  <svg width="0" height="0" style="position:absolute">
+    <defs>
+      <linearGradient id="whaleBody" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%"  stop-color="#3d6f96"/>
+        <stop offset="55%" stop-color="#28517a"/>
+        <stop offset="100%" stop-color="#16334f"/>
+      </linearGradient>
+      <linearGradient id="whaleBelly" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#7fa8c4" stop-opacity=".55"/>
+        <stop offset="100%" stop-color="#9dc0d8" stop-opacity=".8"/>
+      </linearGradient>
+
+      <g id="whaleShape">
+        <!-- tail -->
+        <g class="tail">
+          <path fill="url(#whaleBody)" d="M745 178
+            C 790 168, 826 150, 846 118
+            C 858 100, 878 84, 906 80
+            C 888 108, 884 130, 890 148
+            C 912 146, 944 152, 968 174
+            C 936 180, 916 192, 902 210
+            C 878 240, 838 240, 806 224
+            C 782 212, 760 200, 745 196 Z"/>
+        </g>
+        <!-- body -->
+        <path class="body" fill="url(#whaleBody)" d="M70 206
+          C 96 128, 210 84, 340 84
+          C 490 84, 640 118, 760 172
+          C 792 188, 790 208, 756 214
+          C 640 236, 470 268, 330 268
+          C 210 268, 120 252, 76 228
+          C 62 220, 64 212, 70 206 Z"/>
+        <!-- belly with grooves -->
+        <path fill="url(#whaleBelly)" d="M84 224
+          C 150 252, 250 266, 340 266
+          C 420 264, 520 252, 600 236
+          C 520 258, 400 276, 320 274
+          C 220 272, 130 252, 84 230 Z"/>
+        <!-- pectoral fin -->
+        <g class="fin">
+          <path fill="#1d3f61" d="M300 236
+            C 330 260, 352 296, 344 336
+            C 316 322, 288 288, 280 248 Z"/>
+        </g>
+        <!-- eye -->
+        <circle class="eye" cx="163" cy="188" r="7" fill="#0a1c2e"/>
+        <circle cx="166" cy="185" r="2.2" fill="#bfe2f5" opacity=".9"/>
+        <!-- mouth -->
+        <path d="M74 214 C 130 236, 200 244, 262 240" stroke="#0e2740" stroke-width="4"
+              fill="none" stroke-linecap="round" opacity=".7"/>
+      </g>
+    </defs>
+  </svg>
+
+  <!-- ====== Reader ====== -->
+  <div class="app">
+
+    <header class="topbar">
+      <button id="tocBtn" class="icon-btn" title="الفهرس" aria-label="الفهرس">
+        <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <div class="book-title">
+        <h1>ماذا لو كانت الحيتان تطير؟</h1>
+        <span id="sceneName" class="scene-name"></span>
+      </div>
+      <div class="font-controls">
+        <button id="fontMinus" class="icon-btn" title="تصغير الخط">A−</button>
+        <button id="fontPlus" class="icon-btn" title="تكبير الخط">A+</button>
+      </div>
+    </header>
+
+    <div class="progress-wrap">
+      <div class="progress-bar"><div id="progressFill" class="progress-fill"></div>
+        <div id="progressWhale" class="progress-whale">🐋</div>
+      </div>
+      <span id="progressPct" class="progress-pct"></span>
+    </div>
+
+    <main class="stage">
+      <!-- Cover -->
+      <section id="cover" class="cover">
+        <div class="cover-inner">
+          <div class="cover-whale">🐋</div>
+          <p class="cover-kicker">رواية</p>
+          <h2 class="cover-title">ماذا لو كانت الحيتان تطير؟</h2>
+          <div class="cover-waves">〜〜〜〜〜</div>
+          <div class="cover-actions">
+            <button id="startBtn" class="btn primary">ابدأ القراءة</button>
+            <button id="resumeBtn" class="btn ghost" hidden></button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Reading card -->
+      <section id="reader" class="reader" hidden>
+        <article id="pageContent" class="page-content" aria-live="polite"></article>
+
+        <nav class="pager">
+          <button id="nextBtn" class="btn nav-btn">
+            <span>التالية</span>
+            <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="page-indicator">
+            <span id="pageNum"></span>
+            <input id="pageSlider" type="range" min="1" value="1">
+          </div>
+          <button id="prevBtn" class="btn nav-btn">
+            <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>السابقة</span>
+          </button>
+        </nav>
+      </section>
+    </main>
+
+    <!-- TOC drawer -->
+    <aside id="toc" class="toc" aria-hidden="true">
+      <div class="toc-head">
+        <h3>الفهرس</h3>
+        <button id="tocClose" class="icon-btn">✕</button>
+      </div>
+      <ul id="tocList" class="toc-list"></ul>
+    </aside>
+    <div id="tocOverlay" class="toc-overlay"></div>
+
+    <div id="toast" class="toast" role="status"></div>
+  </div>
+
+  <script src="book-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
