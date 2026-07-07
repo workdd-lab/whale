@@ -9,6 +9,8 @@
   const el = {
     cover: document.getElementById("cover"),
     reader: document.getElementById("reader"),
+    authorPage: document.getElementById("authorPage"),
+    authorBack: document.getElementById("authorBackBtn"),
     content: document.getElementById("pageContent"),
     prev: document.getElementById("prevBtn"),
     next: document.getElementById("nextBtn"),
@@ -34,6 +36,7 @@
   let state = { page: 0, font: 21, started: false };
   let current = 0; // 0 = cover, 1..TOTAL = pages
   let animating = false;
+  let viewingAuthor = false;
 
   function load() {
     try {
@@ -138,6 +141,8 @@
 
   function showCover() {
     current = 0;
+    viewingAuthor = false;
+    el.authorPage.hidden = true;
     el.cover.hidden = false;
     el.reader.hidden = true;
     if (state.page > 0) {
@@ -147,10 +152,28 @@
     updateChrome();
   }
 
+  function showAuthor() {
+    viewingAuthor = true;
+    el.cover.hidden = true;
+    el.reader.hidden = true;
+    el.authorPage.hidden = false;
+    document.title = BOOK.title + " — عن المؤلف";
+    updateTocActive();
+  }
+
+  function hideAuthor() {
+    viewingAuthor = false;
+    el.authorPage.hidden = true;
+    if (current === 0) showCover();
+    else { el.reader.hidden = false; updateChrome(); }
+  }
+
   function goTo(n, dir, instant) {
     n = Math.max(1, Math.min(TOTAL, n));
     if (animating || (n === current && !instant)) return;
 
+    viewingAuthor = false;
+    el.authorPage.hidden = true;
     el.cover.hidden = true;
     el.reader.hidden = false;
 
@@ -196,7 +219,11 @@
 
   /* ---------- TOC ---------- */
   function buildToc() {
-    const items = [{ page: 0, title: "الغلاف" }, { page: 1, title: "البداية" }].concat(BOOK.toc);
+    const items = [
+      { page: 0, title: "الغلاف" },
+      { page: 1, title: "البداية" },
+      { page: "author", title: "عن المؤلف" },
+    ].concat(BOOK.toc);
     for (const it of items) {
       const li = document.createElement("li");
       li.dataset.page = it.page;
@@ -204,11 +231,12 @@
       t.textContent = it.title;
       const pg = document.createElement("span");
       pg.className = "pg";
-      pg.textContent = it.page === 0 ? "" : arNum(it.page);
+      pg.textContent = typeof it.page === "number" && it.page > 0 ? arNum(it.page) : "";
       li.append(t, pg);
       li.addEventListener("click", () => {
         closeToc();
-        if (+li.dataset.page === 0) showCover();
+        if (li.dataset.page === "author") showAuthor();
+        else if (+li.dataset.page === 0) showCover();
         else goTo(+li.dataset.page);
       });
       el.tocList.appendChild(li);
@@ -219,9 +247,14 @@
     let best = null;
     for (const li of el.tocList.children) {
       li.classList.remove("active");
+      if (li.dataset.page === "author") continue;
       if (+li.dataset.page <= current && +li.dataset.page > 0) best = li;
     }
-    if (current === 0) best = el.tocList.firstElementChild;
+    if (viewingAuthor) {
+      best = [...el.tocList.children].find((li) => li.dataset.page === "author") || best;
+    } else if (current === 0) {
+      best = el.tocList.firstElementChild;
+    }
     if (best) {
       best.classList.add("active");
     }
@@ -303,6 +336,7 @@
     el.prev.addEventListener("click", prev);
     el.start.addEventListener("click", () => goTo(1));
     el.resume.addEventListener("click", () => goTo(state.page));
+    el.authorBack.addEventListener("click", hideAuthor);
     el.tocBtn.addEventListener("click", openToc);
     el.tocClose.addEventListener("click", closeToc);
     el.tocOverlay.addEventListener("click", closeToc);
@@ -316,6 +350,10 @@
 
     document.addEventListener("keydown", (e) => {
       if (e.target.tagName === "INPUT") return;
+      if (viewingAuthor) {
+        if (e.key === "Escape") hideAuthor();
+        return;
+      }
       switch (e.key) {
         case "ArrowLeft": next(); break;          // RTL: left = forward
         case "ArrowRight": prev(); break;

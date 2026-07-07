@@ -300,6 +300,14 @@ button { font-family: inherit; cursor: pointer; }
 .cover-waves { color: rgba(140, 215, 240, .5); letter-spacing: 4px; margin: 10px 0 26px; }
 .cover-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
 
+.author-name { font-size: clamp(34px, 6vw, 52px); }
+.author-book-line {
+  font-family: "Amiri", serif;
+  color: var(--ink-dim);
+  font-size: 16px;
+  margin: 0 0 28px;
+}
+
 .btn {
   border: 1px solid var(--card-border);
   background: rgba(120, 200, 235, 0.1);
