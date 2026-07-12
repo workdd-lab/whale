@@ -1,0 +1,16 @@
+{
+  "name": "ماذا لو كانت الحيتان تطير؟ — أسامة لافي",
+  "short_name": "الحيتان تطير",
+  "description": "رواية «ماذا لو كانت الحيتان تطير؟» لأسامة لافي",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#041526",
+  "theme_color": "#062949",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
