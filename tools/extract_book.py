@@ -15,9 +15,10 @@ Then merge justified lines into paragraphs using left-margin reach.
 import fitz
 import json
 import re
+import sys
 
-DOC = r"C:\Users\musta\tt\whales.pdf"
-OUT = r"C:\Users\musta\tt\book_data.json"
+DOC = sys.argv[1] if len(sys.argv) > 1 else r"C:\Users\musta\tt\whales.pdf"
+OUT = sys.argv[2] if len(sys.argv) > 2 else r"C:\Users\musta\tt\book_data.json"
 
 COMBINING = set(range(0x0610, 0x061B)) | set(range(0x064B, 0x0660)) | {0x0670} | \
     set(range(0x06D6, 0x06DD)) | set(range(0x06DF, 0x06E9)) | set(range(0x06EA, 0x06EE))
@@ -79,7 +80,7 @@ def pair_ligatures(chars, stats):
             if j < n:
                 anchor = chars[j]
                 aw = anchor["x1"] - anchor["x0"]
-                if aw > 0.5 and is_arabic_letter(anchor["c"]) and abs(anchor["x1"] - ch["x0"]) < 1.5:
+                if aw > 0.5 and is_arabic_letter(anchor["c"]) and abs(anchor["x1"] - ch["x0"]) < 2.0:
                     cluster = chars[i:j + 1]
                     text = "".join(c["c"] for c in reversed(cluster))
                     out.append({"text": text, "x0": anchor["x0"], "x1": anchor["x1"]})
@@ -93,7 +94,7 @@ def pair_ligatures(chars, stats):
             j = i + 1
             while j < n:
                 cw = chars[j]["x1"] - chars[j]["x0"]
-                if cw < 0.05 and is_arabic_letter(chars[j]["c"]) and abs(chars[j]["x1"] - ch["x1"]) < 1.5:
+                if cw < 0.05 and is_arabic_letter(chars[j]["c"]) and abs(chars[j]["x1"] - ch["x1"]) < 2.0:
                     j += 1
                 else:
                     break
@@ -111,16 +112,44 @@ def pair_ligatures(chars, stats):
 
 
 def glue_marks(clusters):
-    """Combining marks glue to previous stream cluster when sitting on its box; else stay orphan."""
+    """Combining marks glue to whichever neighboring cluster's box is
+    geometrically closer -- usually the previous one, but a mark can sit
+    BEFORE its base in stream order (seen with tanwin right before a
+    "لا"-family ligature pair that hasn't been merged into an anchor yet at
+    that point in the stream), in which case the correct owner is ahead,
+    not behind."""
+    n = len(clusters)
+
+    def box_dist(mark, cl):
+        lo, hi = cl["x0"], cl["x1"]
+        if lo <= mark["x0"] <= hi:
+            return 0
+        return min(abs(mark["x0"] - lo), abs(mark["x0"] - hi))
+
+    marks_for = {}
+    consumed = set()
+    for i, cl in enumerate(clusters):
+        if not is_mark(cl["text"][0]):
+            continue
+        prev_i = next((k for k in range(i - 1, -1, -1) if not is_mark(clusters[k]["text"][0])), None)
+        next_i = next((k for k in range(i + 1, n) if not is_mark(clusters[k]["text"][0])), None)
+        dp = box_dist(cl, clusters[prev_i]) if prev_i is not None else None
+        dn = box_dist(cl, clusters[next_i]) if next_i is not None else None
+        if dp is None and dn is None:
+            continue
+        owner_i = prev_i if (dn is None or (dp is not None and dp <= dn)) else next_i
+        marks_for.setdefault(owner_i, []).append((i, cl["text"]))
+        consumed.add(i)
+
     out = []
-    for cl in clusters:
-        c0 = cl["text"][0]
-        if out and is_mark(c0) and len(cl["text"]) == len(cl["text"]):
-            prev = out[-1]
-            if not is_mark(prev["text"][0]) and prev["x0"] - 1.0 <= cl["x0"] <= prev["x1"] + 1.0:
-                prev["text"] += cl["text"]
-                continue
-        out.append(cl)
+    for i, cl in enumerate(clusters):
+        if i in consumed:
+            continue
+        text = cl["text"]
+        if i in marks_for:
+            for _, mtext in sorted(marks_for[i], key=lambda t: t[0]):
+                text += mtext
+        out.append({"text": text, "x0": cl["x0"], "x1": cl["x1"]})
     return out
 
 
@@ -242,6 +271,17 @@ def clean(txt):
     txt = re.sub(r" +(?=[ً-ْٰ])", "", txt)
     # a mark stranded after punctuation belongs on the letter before it
     txt = re.sub(r"([!؟.،؛…]+)([ً-ْٰ]+)", r"\2\1", txt)
+    # book-wide upstream PDF defect: any word ending in a bare alef (the
+    # common tanwin-less "-an" adverb spelling, e.g. "جدا", "دائما", "أيضا")
+    # gets a duplicate phantom alef -- glued directly ("اا") or separated by
+    # a stray space ("ا ا") depending on line justification. No real Arabic
+    # word ends in a doubled bare alef, so this collapse is always safe.
+    # Must run BEFORE the standalone-alef-joins-following-word rule below,
+    # otherwise a duplicate noise-alef gets glued onto the NEXT real word
+    # instead of being dropped (e.g. "حمدا ا لله" -> wrongly "حمدا الله"
+    # instead of correctly "حمدا لله").
+    txt = re.sub(r"([ء-ي])اا(?=\s|$|[.,!؟،؛:])", r"\1ا", txt)
+    txt = re.sub(r"ا ا(?=\s|$|[.,!؟،؛:])", "ا", txt)
     # standalone alef-form joins the following word (never a valid standalone word)
     txt = re.sub(rf"(^| )([{ALEF_FORMS}]) (?=\S)", r"\1\2", txt)
     # standalone waw is the conjunction, always written attached to the next word
@@ -260,6 +300,17 @@ def clean(txt):
     # physically mis-positioned two slots later than it belongs, geometry
     # alone can't distinguish this from a real word boundary
     txt = txt.replace("م لبتث", "متلبثًا")
+    # book-wide upstream PDF defect: "لا" ("no/not", or as part of a longer
+    # word like "خلال"/"الابتعاد") consistently loses its alef, leaving a
+    # stray tanwin-fatha mark glued to the lone lam -- order varies ("لً" or
+    # "ًل") depending on which side of the ligature pair the mark's bogus
+    # position happened to land on. Bare "ل"+tanwin-fatha with no alef is
+    # never valid standalone Arabic, so this is always a lost alef, not a
+    # legitimate diacritic -- restoring "لا" and dropping the spurious mark
+    # is always correct.
+    txt = re.sub(r"لً|ًل", "لا", txt)
+    # author's signature loses the space between his middle and last name once
+    txt = txt.replace("ياسرلافي", "ياسر لافي")
     return txt
 
 
@@ -276,21 +327,34 @@ def main():
         for block in d["blocks"]:
             for line in block.get("lines", []):
                 for span in line["spans"]:
-                    prev = None
                     for ch in span["chars"]:
                         rec = {"c": ch["c"], "x0": ch["bbox"][0], "x1": ch["bbox"][2],
                                "y0": ch["bbox"][1], "y1": ch["bbox"][3],
                                "font": span["font"], "row": None}
-                        # marks inherit the row of their in-stream base
-                        if (is_mark(ch["c"]) and prev is not None
-                                and prev["x0"] - 1.0 <= rec["x0"] <= prev["x1"] + 1.0):
-                            rec["inherit"] = prev
                         allchars.append(rec)
-                        prev = rec
 
-        # cluster baselines of solid chars into rows
+        # Zero-width glyphs -- combining marks AND the decomposed-ligature
+        # "phantom" letters used by pair_ligatures (e.g. the invisible alef
+        # in an anchor-first "لا" pair) -- can carry a bogus y-position from
+        # the font that has nothing to do with where they actually sit in
+        # the line, and need to inherit their row from a real neighbor
+        # instead. But most zero-width glyphs are NOT bogus: they sit
+        # correctly in their own row and just happen to have no stream-
+        # adjacent pairing partner (e.g. genuine unpaired duplicate-glyph
+        # noise). Only treat a glyph as truly orphaned -- and go looking
+        # for a substitute row -- when ITS OWN y-position doesn't match any
+        # real row on the page either; otherwise a page-wide x-proximity
+        # search risks gluing it onto a same-x-coordinate word in a
+        # completely unrelated row purely by coincidence.
+        def is_zero_width(rec):
+            return (rec["x1"] - rec["x0"]) < 0.05
+
+        def is_orphanable(rec):
+            return is_mark(rec["c"]) or (is_zero_width(rec) and is_arabic_letter(rec["c"]))
+
+        # rows established from real (non-orphanable) content only
         base_ys = sorted(ch["y1"] for ch in allchars
-                         if not ch["c"].isspace() and not is_mark(ch["c"]))
+                         if not ch["c"].isspace() and not is_orphanable(ch))
         rows = []
         for y in base_ys:
             if rows and y - rows[-1][-1] <= 5.0:
@@ -302,16 +366,68 @@ def main():
         def nearest_row(y):
             return min(range(len(centers)), key=lambda i: abs(centers[i] - y)) if centers else 0
 
-        buckets = [[] for _ in centers] or [[]]
+        def own_y_is_sane(rec):
+            if not centers:
+                return False
+            return abs(centers[nearest_row(rec["y1"])] - rec["y1"]) <= 10
+
+        n = len(allchars)
+        for i, rec in enumerate(allchars):
+            if not is_orphanable(rec):
+                continue
+            for j in (i - 1, i + 1):
+                if not (0 <= j < n):
+                    continue
+                cand = allchars[j]
+                if is_orphanable(cand):
+                    continue
+                if cand["x0"] - 1.0 <= rec["x0"] <= cand["x1"] + 1.0:
+                    rec["inherit"] = cand
+                    break
+
+        # Some phantom glyphs aren't even stream-adjacent to their true
+        # anchor (a whole separate, disconnected text run in the PDF's
+        # internal structure -- same underlying defect, worse case). Fall
+        # back to a page-wide nearest-by-x search among real characters,
+        # but only when the glyph's own y genuinely doesn't belong anywhere.
+        anchors = [c for c in allchars if not is_orphanable(c)]
+        for rec in allchars:
+            if "inherit" in rec or not is_orphanable(rec) or own_y_is_sane(rec):
+                continue
+            best, best_d = None, None
+            for cand in anchors:
+                lo, hi = cand["x0"], cand["x1"]
+                d = 0.0 if lo - 1.0 <= rec["x0"] <= hi + 1.0 else min(abs(rec["x0"] - lo), abs(rec["x0"] - hi))
+                if d > 2.0:
+                    continue
+                if best_d is None or d < best_d:
+                    best, best_d = cand, d
+            if best is not None:
+                rec["inherit"] = best
+
+        # pass 1: resolve rows for every non-inheriting char first (their own
+        # y, sane or not -- an un-inherited orphan just lands wherever its
+        # own y naturally sorts, which is always at least as good as a
+        # coincidental cross-row match), so inherit-from-a-later-in-stream
+        # anchor can be resolved in pass 2
+        for ch in allchars:
+            if "inherit" in ch:
+                continue
+            ri = nearest_row(ch["y1"])
+            if ch["c"].isspace() and centers and abs(centers[ri] - ch["y1"]) > 10:
+                ch["row"] = -1  # dropped: spacer-line whitespace
+                continue
+            ch["row"] = ri
+
+        # pass 2: orphans copy their resolved anchor's row
         for ch in allchars:
             if "inherit" in ch:
                 ch["row"] = ch["inherit"]["row"]
-            else:
-                ri = nearest_row(ch["y1"])
-                # spaces from empty spacer lines have no real row: drop them
-                if ch["c"].isspace() and centers and abs(centers[ri] - ch["y1"]) > 10:
-                    continue
-                ch["row"] = ri
+
+        buckets = [[] for _ in centers] or [[]]
+        for ch in allchars:
+            if ch["row"] is None or ch["row"] == -1:
+                continue
             buckets[ch["row"]].append(ch)
 
         lines = []

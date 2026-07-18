@@ -1,7 +1,8 @@
 import json
 import os
+import sys
 
-src = r"C:\Users\musta\tt\book_data.json"
+src = sys.argv[1] if len(sys.argv) > 1 else r"C:\Users\musta\tt\book_data2.json"
 outdir = r"C:\Users\musta\tt\whale-book"
 os.makedirs(outdir, exist_ok=True)
 
@@ -22,7 +23,8 @@ for p in d:
             toc.append({"page": p["page"], "title": x.strip().strip('"“”«»').strip()})
 
 book = {
-    "title": "ماذا لو كانت الحيتان تطير؟",
+    "title": "عندما تطير الحيتان",
+    "author": "أسامة ياسر لافي",
     "pages": [p["paras"] for p in d],
     "toc": toc,
 }
