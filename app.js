@@ -11,6 +11,8 @@
     reader: document.getElementById("reader"),
     authorPage: document.getElementById("authorPage"),
     authorBack: document.getElementById("authorBackBtn"),
+    dedicationPage: document.getElementById("dedicationPage"),
+    dedicationBack: document.getElementById("dedicationBackBtn"),
     content: document.getElementById("pageContent"),
     prev: document.getElementById("prevBtn"),
     next: document.getElementById("nextBtn"),
@@ -37,6 +39,7 @@
   let current = 0; // 0 = cover, 1..TOTAL = pages
   let animating = false;
   let viewingAuthor = false;
+  let viewingDedication = false;
 
   function load() {
     try {
@@ -142,7 +145,9 @@
   function showCover() {
     current = 0;
     viewingAuthor = false;
+    viewingDedication = false;
     el.authorPage.hidden = true;
+    el.dedicationPage.hidden = true;
     el.cover.hidden = false;
     el.reader.hidden = true;
     if (state.page > 0) {
@@ -154,6 +159,8 @@
 
   function showAuthor() {
     viewingAuthor = true;
+    viewingDedication = false;
+    el.dedicationPage.hidden = true;
     el.cover.hidden = true;
     el.reader.hidden = true;
     el.authorPage.hidden = false;
@@ -168,12 +175,32 @@
     else { el.reader.hidden = false; updateChrome(); }
   }
 
+  function showDedication() {
+    viewingDedication = true;
+    viewingAuthor = false;
+    el.authorPage.hidden = true;
+    el.cover.hidden = true;
+    el.reader.hidden = true;
+    el.dedicationPage.hidden = false;
+    document.title = BOOK.title + " — إهداء";
+    updateTocActive();
+  }
+
+  function hideDedication() {
+    viewingDedication = false;
+    el.dedicationPage.hidden = true;
+    if (current === 0) showCover();
+    else { el.reader.hidden = false; updateChrome(); }
+  }
+
   function goTo(n, dir, instant) {
     n = Math.max(1, Math.min(TOTAL, n));
     if (animating || (n === current && !instant)) return;
 
     viewingAuthor = false;
+    viewingDedication = false;
     el.authorPage.hidden = true;
+    el.dedicationPage.hidden = true;
     el.cover.hidden = true;
     el.reader.hidden = false;
 
@@ -223,6 +250,7 @@
       { page: 0, title: "الغلاف" },
       { page: 1, title: "البداية" },
       { page: "author", title: "عن المؤلف" },
+      { page: "dedication", title: "إهداء" },
     ].concat(BOOK.toc);
     for (const it of items) {
       const li = document.createElement("li");
@@ -236,6 +264,7 @@
       li.addEventListener("click", () => {
         closeToc();
         if (li.dataset.page === "author") showAuthor();
+        else if (li.dataset.page === "dedication") showDedication();
         else if (+li.dataset.page === 0) showCover();
         else goTo(+li.dataset.page);
       });
@@ -247,11 +276,13 @@
     let best = null;
     for (const li of el.tocList.children) {
       li.classList.remove("active");
-      if (li.dataset.page === "author") continue;
+      if (li.dataset.page === "author" || li.dataset.page === "dedication") continue;
       if (+li.dataset.page <= current && +li.dataset.page > 0) best = li;
     }
     if (viewingAuthor) {
       best = [...el.tocList.children].find((li) => li.dataset.page === "author") || best;
+    } else if (viewingDedication) {
+      best = [...el.tocList.children].find((li) => li.dataset.page === "dedication") || best;
     } else if (current === 0) {
       best = el.tocList.firstElementChild;
     }
@@ -337,6 +368,7 @@
     el.start.addEventListener("click", () => goTo(1));
     el.resume.addEventListener("click", () => goTo(state.page));
     el.authorBack.addEventListener("click", hideAuthor);
+    el.dedicationBack.addEventListener("click", hideDedication);
     el.tocBtn.addEventListener("click", openToc);
     el.tocClose.addEventListener("click", closeToc);
     el.tocOverlay.addEventListener("click", closeToc);
@@ -352,6 +384,10 @@
       if (e.target.tagName === "INPUT") return;
       if (viewingAuthor) {
         if (e.key === "Escape") hideAuthor();
+        return;
+      }
+      if (viewingDedication) {
+        if (e.key === "Escape") hideDedication();
         return;
       }
       switch (e.key) {
